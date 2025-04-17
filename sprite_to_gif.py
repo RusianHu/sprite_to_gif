@@ -153,12 +153,9 @@ class SpriteSheetConverter(TkinterDnD.Tk):
             img = Image.open(self.input_filepath)
             img_width, img_height = img.size
 
-            # 强制转换为RGBA模式并确保透明度处理
-            img = img.convert('RGBA')
-            # 创建一个透明背景的空白图像作为参考
-            transparent_bg = Image.new('RGBA', img.size, (0, 0, 0, 0))
-            # 将原始图像与透明背景合成，确保透明度正确
-            img = Image.alpha_composite(transparent_bg, img)
+            # 检查是否为 RGBA 模式，如果不是，转换为 RGBA 以支持透明度
+            if img.mode != 'RGBA':
+                 img = img.convert('RGBA')
 
             # 根据选择的格式确定行列数
             format_type = self.sprite_format.get()
@@ -265,28 +262,15 @@ class SpriteSheetConverter(TkinterDnD.Tk):
             self.update_status("正在保存 GIF...")
             try:
                 # 保存 GIF
-                # 为所有帧创建统一的调色板
-                frames = []
-                for frame in self.gif_frames_pil:
-                    # 确保每帧都是RGBA模式
-                    frame = frame.convert('RGBA')
-                    # 创建一个透明背景的空白图像
-                    transparent_bg = Image.new('RGBA', frame.size, (0, 0, 0, 0))
-                    # 将帧与透明背景合成
-                    frame = Image.alpha_composite(transparent_bg, frame)
-                    frames.append(frame)
-                
-                # 保存GIF时强制使用透明度
-                frames[0].save(
+                self.gif_frames_pil[0].save(
                     save_path,
                     save_all=True,
-                    append_images=frames[1:],
-                    duration=self.animation_delay,
-                    loop=0,
-                    transparency=0,
-                    disposal=2,
-                    version="GIF89a",
-                    background=0  # 明确设置背景色为透明
+                    append_images=self.gif_frames_pil[1:], # 添加剩余的帧
+                    duration=self.animation_delay,        # 每帧的持续时间 (毫秒)
+                    loop=0,                              # 0 表示无限循环
+                    optimize=False,                      # 可以设为 True 尝试优化文件大小
+                    transparency=0,                      # 使用第一帧的透明度信息
+                    disposal=2                           # 关键：处理透明背景的关键，保留前一帧
                 )
                 self.update_status(f"GIF 已保存到: {save_path}")
                 messagebox.showinfo("保存成功", f"GIF 文件已成功保存到:\n{save_path}")
