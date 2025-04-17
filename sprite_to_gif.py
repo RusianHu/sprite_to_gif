@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
@@ -58,7 +59,8 @@ class SpriteSheetConverter(TkinterDnD.Tk):
         preview_frame.pack(fill=tk.BOTH, expand=True, pady=10)  # 增加上下间距
 
         # 使用 Canvas 来更好地控制预览图像的大小和位置
-        self.preview_canvas = tk.Canvas(preview_frame, bg="lightgrey", width=256, height=256) # 假设帧大小不超过 256x256
+        # 移除 bg="lightgrey" 以支持透明背景预览
+        self.preview_canvas = tk.Canvas(preview_frame, width=256, height=256, highlightthickness=0) # 假设帧大小不超过 256x256, highlightthickness=0 移除边框
         self.preview_canvas.pack(pady=5)  # 减少预览区域的上下间距
         self.preview_label_text = self.preview_canvas.create_text(128, 128, text="预览区域", fill="grey")
 
@@ -133,6 +135,8 @@ class SpriteSheetConverter(TkinterDnD.Tk):
             self.after_cancel(self.preview_job)
             self.preview_job = None
         self.preview_canvas.delete("all") # 清除 Canvas 上的所有内容
+        # 重新设置Canvas大小为默认值，并显示提示文本
+        self.preview_canvas.config(width=256, height=256)
         self.preview_label_text = self.preview_canvas.create_text(128, 128, text="预览区域", fill="grey")
         self.gif_frames_tk = [] # 清空 tk 图片缓存
 
@@ -161,25 +165,31 @@ class SpriteSheetConverter(TkinterDnD.Tk):
             format_type = self.sprite_format.get()
             if format_type == "4x4":
                 rows, cols = 4, 4
-                # 直接计算帧大小，不再检查是否能整除
                 frame_width = img_width // 4
                 frame_height = img_height // 4
             else:  # 3x4格式
                 rows, cols = 4, 3
-                # 直接计算帧大小，不再检查是否能整除
                 frame_width = img_width // 3
                 frame_height = img_height // 4
 
             if frame_width <= 0 or frame_height <= 0:
-                 raise ValueError("计算出的帧尺寸无效。")
+                 raise ValueError("计算出的帧尺寸无效。输入图像尺寸可能太小或格式选择错误。")
 
             for row in range(rows):
                 for col in range(cols):
+                    # 检查是否超出总帧数（针对3x4格式，只有12帧）
+                    if format_type == "3x4" and row * cols + col >= 12:
+                        break
                     left = col * frame_width
                     top = row * frame_height
                     right = left + frame_width
                     bottom = top + frame_height
                     frame = img.crop((left, top, right, bottom))
+
+                    # 确保裁剪出的帧也是 RGBA
+                    if frame.mode != 'RGBA':
+                        frame = frame.convert('RGBA')
+
                     self.gif_frames_pil.append(frame)
                     # 为预览准备 Tkinter PhotoImage
                     tk_image = ImageTk.PhotoImage(frame)
@@ -191,16 +201,23 @@ class SpriteSheetConverter(TkinterDnD.Tk):
             self.update_status("转换完成！可以预览和保存。")
             self.save_button.config(state=tk.NORMAL)
             # 调整 Canvas 大小以适应第一帧
-            self.preview_canvas.config(width=frame_width, height=frame_height)
+            # 获取第一帧的大小来设置 Canvas
+            first_frame_width, first_frame_height = self.gif_frames_pil[0].size
+            self.preview_canvas.config(width=first_frame_width, height=first_frame_height)
             self.preview_canvas.delete(self.preview_label_text) # 删除 "预览区域" 文本
             self.start_preview()
 
         except FileNotFoundError:
             self.update_status(f"错误：文件未找到 - {self.input_filepath}")
             messagebox.showerror("错误", f"文件未找到:\n{self.input_filepath}")
+            self.clear_preview() # 出错时清理预览
+        except ValueError as e: # 更具体地捕获帧尺寸错误
+            self.update_status(f"转换错误: {e}")
+            messagebox.showerror("转换错误", f"处理图像时发生错误:\n{e}\n请检查图像尺寸是否能被所选格式（{self.sprite_format.get()}）整除，且尺寸大于0。")
+            self.clear_preview() # 出错时清理预览
         except Exception as e:
             self.update_status(f"转换错误: {e}")
-            messagebox.showerror("转换错误", f"处理图像时发生错误:\n{e}")
+            messagebox.showerror("转换错误", f"处理图像时发生意外错误:\n{e}")
             self.clear_preview() # 出错时也清理预览
 
         finally:
@@ -229,11 +246,13 @@ class SpriteSheetConverter(TkinterDnD.Tk):
         frame_image = self.gif_frames_tk[self.current_preview_frame_index]
 
         # 在 Canvas 中心绘制图像
+        # 获取当前 Canvas 的实际大小来居中
         canvas_width = self.preview_canvas.winfo_width()
         canvas_height = self.preview_canvas.winfo_height()
-        # 清除旧图像（如果存在）
+
+        # 在绘制新帧前清除旧帧 (使用 tag 'frame')
         self.preview_canvas.delete("frame")
-        # 创建新图像
+        # 创建新图像，放置在 Canvas 中心
         self.preview_canvas.create_image(canvas_width / 2, canvas_height / 2, anchor=tk.CENTER, image=frame_image, tags="frame")
 
         self.current_preview_frame_index = (self.current_preview_frame_index + 1) % len(self.gif_frames_tk)
@@ -261,7 +280,7 @@ class SpriteSheetConverter(TkinterDnD.Tk):
         if save_path:
             self.update_status("正在保存 GIF...")
             try:
-                # 保存 GIF
+                # 保存 GIF，移除 transparency 参数，保留 disposal=2
                 self.gif_frames_pil[0].save(
                     save_path,
                     save_all=True,
@@ -269,7 +288,7 @@ class SpriteSheetConverter(TkinterDnD.Tk):
                     duration=self.animation_delay,        # 每帧的持续时间 (毫秒)
                     loop=0,                              # 0 表示无限循环
                     optimize=False,                      # 可以设为 True 尝试优化文件大小
-                    transparency=0,                      # 使用第一帧的透明度信息
+                    # transparency=0, # <--- 移除此行
                     disposal=2                           # 关键：处理透明背景的关键，保留前一帧
                 )
                 self.update_status(f"GIF 已保存到: {save_path}")
@@ -285,3 +304,4 @@ class SpriteSheetConverter(TkinterDnD.Tk):
 if __name__ == "__main__":
     app = SpriteSheetConverter()
     app.mainloop()
+
