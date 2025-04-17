@@ -11,8 +11,8 @@ from tkinterdnd2 import DND_FILES, TkinterDnD # 用于拖拽
 class SpriteSheetConverter(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
-        self.title("4x4 序列贴图转 GIF")
-        self.geometry("550x650") # 调整窗口大小以容纳预览和控件
+        self.title("序列贴图转 GIF")
+        self.geometry("550x800") # 调整窗口大小以容纳预览和控件
         self.resizable(False, False) # 禁止调整窗口大小
 
         # --- 状态变量 ---
@@ -22,10 +22,21 @@ class SpriteSheetConverter(TkinterDnD.Tk):
         self.preview_job = None
         self.current_preview_frame_index = 0
         self.animation_delay = 100 # GIF 帧之间的延迟 (毫秒)
+        self.sprite_format = tk.StringVar(value="4x4") # 默认为4x4格式
 
         # --- 界面布局 ---
         self.mainframe = ttk.Frame(self, padding="10 10 10 10")
         self.mainframe.pack(fill=tk.BOTH, expand=True)
+
+        # --- 格式选择区 ---
+        format_frame = ttk.LabelFrame(self.mainframe, text="选择序列贴图格式", padding="10")
+        format_frame.pack(fill=tk.X, pady=5)
+
+        format_4x4 = ttk.Radiobutton(format_frame, text="4x4 格式 (16帧)", variable=self.sprite_format, value="4x4")
+        format_4x4.pack(side=tk.LEFT, padx=20, pady=5)
+
+        format_3x4 = ttk.Radiobutton(format_frame, text="3x4 格式 (12帧)", variable=self.sprite_format, value="3x4")
+        format_3x4.pack(side=tk.LEFT, padx=20, pady=5)
 
         # --- 文件输入区 ---
         input_frame = ttk.LabelFrame(self.mainframe, text="输入 PNG 文件", padding="10")
@@ -33,7 +44,7 @@ class SpriteSheetConverter(TkinterDnD.Tk):
         input_frame.drop_target_register(DND_FILES)
         input_frame.dnd_bind('<<Drop>>', self.handle_drop)
 
-        self.drop_label = ttk.Label(input_frame, text="将 4x4 的 PNG 序列图拖拽到此处", relief="solid", padding=20, anchor=tk.CENTER)
+        self.drop_label = ttk.Label(input_frame, text="将序列贴图 PNG 拖拽到此处", relief="solid", padding=20, anchor=tk.CENTER)
         self.drop_label.pack(fill=tk.X, pady=5)
 
         browse_button = ttk.Button(input_frame, text="或 浏览...", command=self.select_file)
@@ -44,16 +55,16 @@ class SpriteSheetConverter(TkinterDnD.Tk):
 
         # --- 预览区 ---
         preview_frame = ttk.LabelFrame(self.mainframe, text="GIF 预览", padding="10")
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        preview_frame.pack(fill=tk.BOTH, expand=True, pady=10)  # 增加上下间距
 
         # 使用 Canvas 来更好地控制预览图像的大小和位置
         self.preview_canvas = tk.Canvas(preview_frame, bg="lightgrey", width=256, height=256) # 假设帧大小不超过 256x256
-        self.preview_canvas.pack(pady=10)
+        self.preview_canvas.pack(pady=5)  # 减少预览区域的上下间距
         self.preview_label_text = self.preview_canvas.create_text(128, 128, text="预览区域", fill="grey")
 
         # --- 控制区 ---
-        control_frame = ttk.Frame(self.mainframe, padding="10")
-        control_frame.pack(fill=tk.X)
+        control_frame = ttk.Frame(self.mainframe, padding="5")
+        control_frame.pack(fill=tk.X, pady=5)  # 减少控制区的上下间距和内边距
 
         self.convert_button = ttk.Button(control_frame, text="转换为 GIF", command=self.convert_to_gif, state=tk.DISABLED)
         self.convert_button.pack(side=tk.LEFT, padx=5)
@@ -62,8 +73,8 @@ class SpriteSheetConverter(TkinterDnD.Tk):
         self.save_button.pack(side=tk.LEFT, padx=5)
 
         # --- 状态栏 ---
-        self.status_label = ttk.Label(self.mainframe, text="请选择一个 4x4 的 PNG 文件", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_label.pack(fill=tk.X, side=tk.BOTTOM)
+        self.status_label = ttk.Label(self.mainframe, text="请选择序列贴图格式和 PNG 文件", relief=tk.SUNKEN, anchor=tk.W)
+        self.status_label.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))  # 增加上方的间距
 
         # --- 样式 ---
         style = ttk.Style()
@@ -79,8 +90,9 @@ class SpriteSheetConverter(TkinterDnD.Tk):
 
     def select_file(self):
         """弹出文件选择对话框"""
+        format_text = "4x4" if self.sprite_format.get() == "4x4" else "3x4"
         filepath = filedialog.askopenfilename(
-            title="选择 4x4 PNG 序列图",
+            title=f"选择 {format_text} PNG 序列图",
             filetypes=[("PNG 文件", "*.png")]
         )
         if filepath:
@@ -145,18 +157,24 @@ class SpriteSheetConverter(TkinterDnD.Tk):
             if img.mode != 'RGBA':
                  img = img.convert('RGBA')
 
-
-            if img_width % 4 != 0 or img_height % 4 != 0:
-                raise ValueError("图像尺寸必须能被 4 整除。")
-
-            frame_width = img_width // 4
-            frame_height = img_height // 4
+            # 根据选择的格式确定行列数
+            format_type = self.sprite_format.get()
+            if format_type == "4x4":
+                rows, cols = 4, 4
+                # 直接计算帧大小，不再检查是否能整除
+                frame_width = img_width // 4
+                frame_height = img_height // 4
+            else:  # 3x4格式
+                rows, cols = 4, 3
+                # 直接计算帧大小，不再检查是否能整除
+                frame_width = img_width // 3
+                frame_height = img_height // 4
 
             if frame_width <= 0 or frame_height <= 0:
                  raise ValueError("计算出的帧尺寸无效。")
 
-            for row in range(4):
-                for col in range(4):
+            for row in range(rows):
+                for col in range(cols):
                     left = col * frame_width
                     top = row * frame_height
                     right = left + frame_width
