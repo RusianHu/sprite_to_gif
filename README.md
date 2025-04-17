@@ -19,9 +19,6 @@
 - 自动处理帧动画
 - 可选择不同的序列贴图格式
 
-## 截图
-
-(这里可以添加应用程序的截图)
 
 ## 安装要求
 
@@ -69,10 +66,6 @@ python sprite_to_gif.py
 pip install pyinstaller
 pyinstaller --onefile --windowed sprite_to_gif.py
 ```
-
-## 贡献
-
-欢迎提交问题和改进建议！
 
 ## 许可证
 
