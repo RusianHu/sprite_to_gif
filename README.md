@@ -2,6 +2,13 @@
 
 一个简单易用的工具，用于将序列贴图（精灵表）转换为GIF动画。支持4x4和3x4两种格式的序列贴图。
 
+![image](https://github.com/user-attachments/assets/ad84f045-9eab-4d65-b7c1-d17535e1158b) 
+
+![彩虹小马plus](https://github.com/user-attachments/assets/872e5c50-76ea-4ab8-b3c5-c106b677300d)
+
+![彩虹小马plus](https://github.com/user-attachments/assets/6ba12337-fb59-427c-9d8f-219b357ddf68)
+
+
 ## 功能特点
 
 - 支持将4x4和3x4排列的PNG序列贴图转换为GIF动画
